@@ -1,0 +1,33 @@
+#!/bin/bash
+SB=$(realpath "$@")
+DN=$(dirname "$SB")
+echo "Running $@
+from $DN as $SB
+------------------------------------
+"
+
+node --experimental-wasi-unstable-preview1 --experimental-wasm-bigint << END
+'use strict';
+
+const fs = require('fs');
+const { WASI } = require('wasi');
+const wasi = new WASI({
+  args: process.argv,
+  env: process.env,
+  preopens: {
+    '/sandbox': '$DN'
+  }
+});
+const importObject = { wasi_unstable: wasi.wasiImport };
+
+(async () => {
+  const wasm = await WebAssembly.compile(fs.readFileSync('$SB'));
+  const instance = await WebAssembly.instantiate(wasm, importObject);
+
+  wasi.start(instance);
+})();
+
+END
+echo "
+------------------------
+"

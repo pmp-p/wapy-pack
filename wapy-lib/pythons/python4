@@ -1,0 +1,2 @@
+#!/bin/sh
+/usr/local/bin/python3.8 -i -u -B $(dirname $0)/python4.py "$@"

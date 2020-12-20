@@ -1,0 +1,231 @@
+<html><head><base href="org.panda3d.samples"><script type="text/python">
+# host or window are aliases to aio.plink.window : an async rpc proxy link to the [window] js object.
+# all async operations need to be flushed with finalize at some point to get realized
+# when not in an async context.
+# since there's no "auto" await in python from bytecode exec loop (yet).
+
+host.eval("include('file_api_002.js')")
+host.finalize
+
+import importlib
+
+import importlib.abc
+import importlib.machinery
+
+class FetchLibFinder(importlib.abc.MetaPathFinder):
+
+    @classmethod
+    def invalidate_caches(cls):
+        pass
+
+    @classmethod
+    def find_spec(cls, name, path=None, target=None):
+        spec = None
+
+        # search for a binary wasm module first ( precompiled in case of chromium series browsers).
+
+        try:
+            lib = f"{os.environ['DYLD']}/lib{name}.so"
+            os.stat(lib)
+            pdb(f"FetchLibFinder found : {lib}")
+            loader = importlib.machinery.ExtensionFileLoader(name, path)
+            spec = importlib.machinery.ModuleSpec(name=name, loader=loader, origin=lib)
+
+        except FileNotFoundError:
+            pdb(f"FetchLibFinder 404 : {lib}")
+
+        # find a online module.
+        if spec is None:
+            pass
+
+
+        return spec
+
+sys.meta_path.append(FetchLibFinder)
+
+
+async def main():
+
+    async with host:
+        host.fget('assets/Applications/__init__.py')
+        host.fget('assets/Applications/MainActivity.py')
+        host.fget('assets/Applications/geom3d.py')
+
+    importlib.invalidate_caches()
+
+    import Applications
+
+    # pass App namespace, target VM handle whatever they are they must follow the API
+    await Applications.onCreate(Applications, site_wasm.python3)
+
+    await Applications.onStart(Applications, site_wasm.python3)
+
+
+#turn on repl
+interact()
+</script>
+
+
+
+
+<meta charset="utf-8">
+<meta name=viewport content='width=device-width,initial-scale=1'>
+
+    <style>
+        body {
+            width: 100%;
+            box-sizing: border-bo
+            padding: 0;
+            margin: 0;
+            text-align: center;
+        }
+        a { white-space: nowrap; }
+        table {
+            display: inline-block;
+        }
+        #mp_js_stdout {
+            display: inline-block;
+            max-width: 90%;
+            height: 80%;
+            max-height: 600px;
+            vertical-align: middle;
+        }
+        #canvas {
+            border: 4px black solid;
+            border-radius: 4px;
+            vertical-align: middle;
+        };
+
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/xterm.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/xterm.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/addons/fit/fit.min.js"></script>
+  </head>
+
+  <body>
+
+    <h1>{{ cookiecutter.app_name }}</h1>
+    <p>{{ cookiecutter.usage }}
+
+    <pre id="url"></pre>
+
+    <pre id="status"></pre>
+
+    <pre id="test"></pre>
+
+    <pre id="log"></pre>
+
+    <table>
+        <tr>
+
+            <td>
+                <canvas id="crt" width="240" height="320" tabindex="-1"></canvas>
+            </td>
+
+            <td>
+            <canvas id="canvas" width="640" height="480" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+            </td>
+
+        <tr>
+            <td colspan=2>
+            <div id="mp_js_stdout"></div>
+            </td>
+        </tr>
+    <table>
+
+
+  </body>
+
+    <script>
+    window.cpython = true
+    //no repl autostart (helps avoid prompt display in async main)
+    window.repl = false
+    </script>
+
+    <script src="app/src/main/javascript/pythons.002.js"></script>
+
+    <script src="app/src/main/javascript/plink.002.js"></script>
+
+    <script defer>
+
+        function PYTHONSTARTUP() {
+
+
+            window.posix.cors = function (url){
+                if (url.includes('/wyz.fr/'))
+                    return CORS_BROKER + url
+                return url
+            }
+
+        }
+
+        /*Initialization function*/
+        window.onload = function() {
+
+            Terminal.applyAddon(fit);
+            term = new Terminal({
+                    cols : 132,
+                    rows : 40,
+                    tabStopWidth : 8,
+                    cursorBlink : true,
+                    cursorStyle : 'block',
+                    applicationCursor : true,
+                });
+
+
+
+            mp_js_stdout = document.getElementById('mp_js_stdout');
+            mp_js_stdout.value = "";
+            term.open(mp_js_stdout);
+            term.fit();
+
+            /*Setup key input handler */
+            // window_prompt is the pythons.js function that will flush
+            // pseudo-readline buffer toward upy core
+            window.prompt = window_prompt
+
+
+            /*Write text to the terminal */
+            window.term_impl = function (text) { term.write(text) }
+
+            /*Setup key input handler */
+
+            term.on('data', function(key, e) {
+                if ( xterm_helper(term, key) ) {
+                    var kc = key.charCodeAt(0)
+
+                    // default repl of cpython is not event driven.
+                    if (window.cpython) {
+                        if (kc <=27)
+                            console.log("KBD : "+ kc+ " len= "+key.length+ " tmp=" + window.stdin_tmp)
+
+                        if (kc == 13) {
+                            // !!!! window.prompt does *NOT* send newlines
+                            window.stdin_buf = window.stdin_tmp || "#" // + "\n"
+                            window.stdin_tmp = ""
+                            window.stdin_flush = true
+                            console.log("flushing kbd")
+                        } else
+                            window.stdin_tmp += key
+
+                    } else {
+                        if (kc <=27)
+                            console.log("KBD : "+ kc+ " len= "+key.length+ "buf " + window.stdin)
+                        window.stdin += key
+                    }
+
+                    if (window.stdin_echo) {
+                        term.write(key)
+                        if (kc == 13) term.write("\n")
+                    }
+                }
+                //term.write(key)
+            });
+            /*Initialize Python itself*/
+            /*Initialize the REPL.*/
+            console.log('⚡Starting Python⚡')
+            pythons()
+        }
+    </script>
+</html>
+
