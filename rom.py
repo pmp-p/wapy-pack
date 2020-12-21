@@ -17,7 +17,7 @@ rom = [
     "collections/deque.py: collections.deque/collections/deque.py",
 ]
 
-sources_dir = ('/data/git/wapy-pack/wapy-lib','/data/git/pycopy-lib',)
+sources_dir = ('wapy-lib','pycopy-lib',)
 
 for mod in rom:
     target, src = mod.split(': ')
