@@ -132,3 +132,8 @@ dmypy.json
 pycopy-lib
 rom
 wasi-sdk
+wapy
+debug.keystore
+release.keystore
+demos/app_wapy.html
+demos/wapy/wapy.wasm
