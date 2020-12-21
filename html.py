@@ -51,7 +51,7 @@ def html_block(fout, out):
 <form action="javascript:alert('pouet');">
 
 <hr>
-Open browser console (ctrl+shift+i) to see WebAssembly module output.
+Open browser console (ctrl+shift+i) to see WebAssembly module output. <a href=https://github.com/pmp-p/wapy-pack>Build your own</a>
 <hr>
 
 <div id="stdio" tabIndex=1></div><canvas id="canvas"><p>Your browser doesn't support canvas.</p></canvas>

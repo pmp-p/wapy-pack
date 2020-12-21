@@ -6,14 +6,15 @@ wapy app packer
 
 Actual targets :
 
+    WASI
+
+    WebAssembly via polyfill
 
 Future targets :
 
     android
 
-    WASI
-
-    WebAssembly
+    WASM
 
     asm.js
 
@@ -23,11 +24,9 @@ Future targets :
 
 Actual pack mode :
 
+    html
 
 Future pack mode :
     
     apk
-    
-    html
-
     
