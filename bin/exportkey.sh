@@ -1,4 +1,13 @@
 #!/bin/bash
+
+# https://coderwall.com/p/r09hoq/android-generate-release-debug-keystores
+
+# keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android 
+#  -keyalg RSA -keysize 2048 -validity 10000
+
+# keytool -list -v -keystore [keystore path] -alias [alias-name] -storepass [storepass] -keypass [keypass] 
+# keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android 
+
 KEYSTORE=${1:-debug.keystore}
 OUT=$(basename $KEYSTORE .keystore)
 echo "

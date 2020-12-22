@@ -1,12 +1,20 @@
 #!/usr/bin/env python3.8
 import sys, os
 
+LZMA = "js/lzmad.min.js"
+#LZMA = 0
+
+if LZMA:
+    import lzma
+
 import base64, binascii
 
 out = sys.stdout
 
 
-def convert_content(basedir, filename, suffix, ctype, fin, fout, out):
+def convert_content(basedir, filename, suffix, ctype, fin, fout, out, diskfile ):
+    global LZMA
+
     content = fin.read()
 
     name = filename.rsplit('.', 1)[-2]
@@ -16,9 +24,14 @@ def convert_content(basedir, filename, suffix, ctype, fin, fout, out):
     else:
         filename = f"{name}.{suffix}"
 
-    # content = zlib.compress(content, level=9)
     if not ctype in ('text/python', 'sh',):
-        content = base64.encodebytes(content).decode('utf-8')
+        if LZMA :#
+            if ctype=='wasm':
+                content = os.popen(f'base64 {diskfile}| lzma -9 --stdout | base64').read()
+            else:
+                content = os.popen(f'lzma -3 --stdout {diskfile} | base64').read()
+        else:
+            content = base64.encodebytes(content).decode('ascii')
 
 
     else:
@@ -97,8 +110,9 @@ with open(AppName, "w") as fout:
 
         for filename in os.listdir(folder):
             if filename.endswith('.sh'):
-                with open(f'{folder}/{filename}', 'rb') as fin:
-                    convert_content(target, filename, 'sh', 'sh', fin, fout, out)
+                diskfile = f'{folder}/{filename}'
+                with open(diskfile, 'rb') as fin:
+                    convert_content(target, filename, 'sh', 'sh', fin, fout, out, diskfile=diskfile)
 
     for folder in sys.argv[1:]:
 
@@ -121,8 +135,9 @@ with open(AppName, "w") as fout:
                             print(f'{target}/{filename[:-len(suffix)]}lib')
                             ctype = 'lib'
 
-                    with open(f'{folder}/{filename}', 'rb') as fin:
-                        convert_content(target, filename, suffix, ctype, fin, fout, out)
+                    diskfile = f'{folder}/{filename}'
+                    with open(diskfile, 'rb') as fin:
+                        convert_content(target, filename, suffix, ctype, fin, fout, out, diskfile=diskfile)
 
     html_block(fout, out)
 
@@ -135,14 +150,90 @@ with open(AppName, "w") as fout:
     if 0:
         print(
             f"""
-{open('inflate.min.js','r').read()}
+{open('lib/inflate.min.js','r').read()}
+""",
+            file=fout,
+        )
+    elif LZMA:
+        print(
+            f"""
+{open(f'{LZMA}','r').read()}
+""", """
+
+const delay = (ms, fn_solver) => new Promise(resolve => setTimeout(() => resolve(fn_solver()), ms*1000));
+
+function _until(fn_solver){
+    return async function fwrapper(){
+        var argv = Array.from(arguments)
+        function solve_me(){return  fn_solver.apply(window, argv ) }
+        while (!await delay(0, solve_me ) )
+            {};
+    }
+}
+
+function dec_full(value) {
+    return window.uncompressed !== 0
+}
+function dec_idle(value) {
+    return window.uncompressed === 0
+}
+
+
+async function dec(data, as_raw, hint){
+    const was = data.length
+    var array8 = new Uint8Array(new ArrayBuffer(data.length));
+    var i = 0|0;
+    for(i = 0; i < data.length; i++) {
+        array8[i] = data.charCodeAt(i);
+    }
+
+    await _until(dec_idle)()
+
+    LZMA.decompress(array8, function on_decompress_complete(result) {
+        if (!result) {
+            clog("FAILED decompression",hint, was)
+            window.uncompressed = undefined
+        } else {
+            clog("uncompressed: " , result.length , "was", was);
+            window.uncompressed = result;
+        }
+    }, function on_decompress_progress_update(percent) {
+        // document.title = "Decompressing: " + (percent * 100) + "%";
+    },
+        as_raw
+    )
+
+    await _until(dec_full)(0)
+    if (window.uncompressed)
+        clog("stat", window.rsr_count, hint ,was,'now', window.uncompressed.length)
+    return window.uncompressed
+}
 """,
             file=fout,
         )
 
+    elif 0:
+        print(
+            """
+async function dec(data){
+    clog('fake decomp',data.length)
+    return data
+}
+
+""",
+            file=fout,
+        )
+    else:
+        print('''
+
+ ---- NO DECOMPRESSOR -----
+
+''')
+
+
     print(
         """
-
+clog = console.log
 
 String.prototype.rsplit = function(sep, maxsplit) {
     var split = this.split(sep);
@@ -152,11 +243,11 @@ String.prototype.rsplit = function(sep, maxsplit) {
 const cwd = window.location.href.rsplit('/',2)[1]
 const separator = "/" + cwd + "/"
 
-console.log('Current Working Directory :', cwd )
+clog('Current Working Directory :', cwd )
 
 
-function merge(blob) {
-    const url = URL.createObjectURL(blob);
+function merge(dat) {
+    const url = URL.createObjectURL(dat);
     const scr = document.createElement('script');
     scr.src = url;
     document.body.appendChild(scr);
@@ -164,25 +255,56 @@ function merge(blob) {
     URL.revokeObjectURL(url);
 }
 
-function b64toBlob(base64Data, contentType) {
-    contentType = contentType || '';
-    var sliceSize = 1024;
-    var byteCharacters = atob(base64Data)
-    var bytesLength = byteCharacters.length;
-    var slicesCount = Math.ceil(bytesLength / sliceSize);
-    var byteArrays = new Array(slicesCount);
+let toUtf8Decoder = new TextDecoder( "latin1" );
 
-    for (var sliceIndex = 0; sliceIndex < slicesCount; ++sliceIndex) {
-        var begin = sliceIndex * sliceSize;
-        var end = Math.min(begin + sliceSize, bytesLength);
+async function b64toBlob(b64data, contentType, hint) {
 
-        var bytes = new Array(end - begin);
-        for (var offset = begin, i = 0; offset < end; ++i, ++offset) {
-            bytes[i] = byteCharacters[offset].charCodeAt(0);
+    try {
+        const sliceSize = 1024;
+        var pagedata = atob(b64data)
+
+        contentType = contentType || '';
+
+        var blob = undefined
+
+        if (window.dec) {
+            const as_raw = false //(contentType === 'application/wasm')
+            window.rsr_count++
+            blob =  await dec(pagedata, as_raw, hint+ " " + contentType);
+            window.rsr_count--
+            window.uncompressed = 0
+
+            if (contentType === 'application/wasm') {
+                pagedata = atob(blob)
+                blob = undefined
+            }
         }
-        byteArrays[sliceIndex] = new Uint8Array(bytes)
+
+        if (blob) {
+            return new Blob([blob], { type: contentType });
+        } else {
+
+            blob = pagedata
+
+            var bytesLength = blob.length;
+            var slicesCount = Math.ceil(bytesLength / sliceSize);
+            var byteArrays = new Array(slicesCount);
+
+            for (var sliceIndex = 0; sliceIndex < slicesCount; ++sliceIndex) {
+                var begin = sliceIndex * sliceSize;
+                var end = Math.min(begin + sliceSize, bytesLength);
+
+                var bytes = new Array(end - begin);
+                for (var offset = begin, i = 0; offset < end; ++i, ++offset) {
+                    bytes[i] = blob[offset].charCodeAt(0);
+                }
+                byteArrays[sliceIndex] = new Uint8Array(bytes)
+            }
+            return new Blob(byteArrays, { type: contentType });
+        }
+    } catch (x) {
+        clog("unable to decode",hint,contentType,x)
     }
-    return new Blob(byteArrays, { type: contentType });
 }
 
 async function fopen(script, nodefer){
@@ -196,53 +318,53 @@ async function fopen(script, nodefer){
     }
 
 
-    console.log(" <<FS>> ",src)
+    clog(" <<FS>> ",src)
 
 
     if (script.type == 'data') {
-        console.log('data blob[' +  script.id + '] ', src)
-        const blob = b64toBlob(script.text, 'application/binary');
+        clog('data blob[' +  script.id + '] ', src)
+        const blob = await b64toBlob(script.text, 'application/binary', src);
         window.sfs[src] = URL.createObjectURL(blob)
         script.text = ""
         return
     }
 
     if (script.type == 'wasm') {
-        console.log('wasm blob[' +  script.id + '] ', src)
-        const blob = b64toBlob(script.text, 'application/wasm');
+        clog('wasm blob[' +  script.id + '] ', src)
+        const blob = await b64toBlob( script.text, 'application/wasm', src);
         window.sfs[src] = URL.createObjectURL(blob)
         script.text = ""
         return
     }
 
     if (script.type == 'text/python') {
-        console.log('python source [' +  script.id + '] ', src)
-        console.log("code :", script.text.length)
+        clog('python source [' +  script.id + '] ', src)
+        clog("code :", script.text.length)
         return
     }
 
     if (script.type == 'sh') {
-        console.log('shell source [' +  script.id + '] ', script.text)
+        clog('shell source [' +  script.id + '] ', script.text)
         window.cmdline = script.text
         return
     }
 
     if ( (script.type == 'lib') || (script.type == 'js') ) {
-        console.log('js found', script.src)
-        const blob = b64toBlob(script.text, 'text/javascript');
+        clog('js found', script.src)
+        const blob = await b64toBlob(script.text, 'text/javascript', src);
 
         if (script.type == 'lib') {
-            console.log("decoded module("+script.id+"): ", src )
+            clog("decoded module("+script.id+"): ", src )
             const url = URL.createObjectURL(blob);
             ld[script.id] = await import(url)
             window[script.id] = ld[script.id]
             URL.revokeObjectURL(url);
         } else {
-            console.log("decoded script("+script.id+"): ", src )
+            clog("decoded script("+script.id+"): ", src )
             if ( nodefer ) {
                 merge(blob)
             } else {
-                console.log("    -> deferred")
+                clog("    -> deferred")
             }
 
         }
@@ -252,84 +374,95 @@ async function fopen(script, nodefer){
 
 }
 
-function source(src) {
+
+async function source(src) {
+    if (window.rsr_count<0) {
+        window.rsr_count = 0
+        for (const script of document.getElementsByTagName('script')) {
+            // clear text
+            if ( (script.type == 'text/python') || (script.type == 'sh') ) {
+//await
+fopen(script)
+                continue
+            }
+
+            // b64, could be compressed
+            if ( (script.type == 'data') || (script.type == 'wasm') ){
+await
+fopen(script)
+                continue
+            }
+
+            // b64 could be compressed, or could be cleartext
+            if (script.type == 'lib') {
+//await
+fopen(script)
+                continue
+            }
+        }
+    }
 
     for (const script of document.getElementsByTagName('script')) {
         if (script.type == 'js') {
             if (script.src.endsWith(src)) {
-                console.log('sourcing', src, 'from', script.src)
-                return fopen(script, true)
+                clog('sourcing', src, 'from', script.src)
+                return await fopen(script, true)
             }
-//else { console.log(src,script.src) }
+//else { clog(src,script.src) }
         }
     }
-    console.log("could not source",src)
+    clog("could not source",src)
 }
+
 
 function import_module(alias, src) {
     if (!window.ld[alias] ) {
-        console.log("import_module miss", alias, src)
+        clog("import_module miss", alias, src)
         for (const script of document.getElementsByTagName('script')) {
             if ( (script.type == 'js') && (script.id == alias) )
-                console.log("TODO fetch",script.src)
+                clog("TODO fetch",script.src)
         }
     } else {
-        console.log("import_module hit", alias)
+        clog("import_module hit", alias)
     }
     return window.ld[alias]
 }
 
+window.uncompressed = 0
+window.rsr_count = -1
+window.rsr_track = -1
 window.ld = {}
 window.sfs = {}
 
-window.clog = console.log
-window.log = console.log
+window.clog = clog
+window.log = clog
 
 
-for (const script of document.getElementsByTagName('script')) {
-    // clear text
-    if ( (script.type == 'text/python') || (script.type == 'sh') ) {
-        fopen(script)
-        continue
-    }
-
-    // b64, could be compressed
-    if ( (script.type == 'data') || (script.type == 'wasm') ){
-        fopen(script)
-        continue
-    }
-
-    // b64 could be compressed, or could be cleartext
-    if (script.type == 'lib') {
-        fopen(script)
-        continue
-    }
-}
 
 
 window.offline = function offline() {
 
     function locateFile(path) {
         var fsn = path.split('.').shift() + "/" + path
-        console.log('LOCATING :' , fsn )
+        clog('LOCATING :' , fsn )
         const furl = window.sfs[fsn]
         if (!furl)
-            console.log('    Not Found :',path,'from',fsn)
+            clog('    Not Found :',path,'from',fsn)
         return furl
     }
 
     function preInit() {
-        console.log(' ========== PRE-INIT ===========')
+        clog(' ========== PRE-INIT ===========')
     }
 
     window.Module["locateFile"] = locateFile
     window.Module["preInit"] =  preInit
 
     window.Module["fopen"] =  function (fsn) {
-        console.log('LOCATING :', fsn )
+        clog('LOCATING :', fsn )
         const furl = window.sfs[fsn]
         if (!furl) {
-            console.log('    Not Found :', fsn," trying fetch")
+            clog('    Not Found :', fsn," trying fetch")
             return fsn
         }
         return furl
@@ -343,17 +476,18 @@ window.offline = function offline() {
     while (elems.length) {
         const elem = elems[0] ;
         if (elem.endsWith(".py")) {
-            console.log('************* found script at " + argstart +" to run from cmdline : ' + elem)
-            console.log('sys.argv ', elems)
+            clog('************* found script at " + argstart +" to run from cmdline : ' + elem)
+            clog('sys.argv ', elems)
             break
         }
-        console.log(' ****************', elem ,'******************** ')
+        clog(' ****************', elem ,'******************** ')
         vm.argv.push( elems.shift() )
     }
     window.Module.arguments = elems
 
     source( vm.script.interpreter + "/" + vm.script.interpreter + ".js")
 }
+
 
 source("pythons/main.js")
 
