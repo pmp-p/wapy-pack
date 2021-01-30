@@ -173,19 +173,7 @@ else
     exit 1
 fi
 
-export WASI_SDK_PATH=$(realpath ${WD}/wasi-sdk)
-
-SYSROOT="--sysroot=$(realpath ${WASI_SDK_PATH}/share/wasi-sysroot) -include ${WD}/wasi-sdk/fix.h"
-
-CC="$(command -v clang) -g0 -Os ${SYSROOT} -include ${WD}/wasi-sdk/fix.h"
-
-echo $CC
-
-export CC="clang -g0 -Os ${SYSROOT}"
-
-export CPP="clang ${SYSROOT} -E"
-
-read
+. bin/wasi_env.sh
 
 
 if make -C wapy/ports/wapy-wasi \
