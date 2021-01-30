@@ -173,6 +173,7 @@ else
     exit 1
 fi
 
+export FIX="-include $(realpath wasi-sdk/fix.h)"
 . bin/wasi_env.sh
 
 
