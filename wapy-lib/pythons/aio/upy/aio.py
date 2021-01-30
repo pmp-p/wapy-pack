@@ -9,7 +9,7 @@ from uasyncio import *
 try:
     loop = get_event_loop()
 except:
-    print("18 : BAD ASYNCION VERSION")
+    print("18 : BAD ASYNCIO VERSION")
     raise
 
 

@@ -65,12 +65,12 @@ except:
 try:
     __EMSCRIPTEN__
 except:
-    builtins.__EMSCRIPTEN__ = sys.platform in ("emscripten", "asm.js", "wasm", "wasi")
+    builtins.__EMSCRIPTEN__ = sys.platform in ("emscripten", "asm.js", "wasm")
 
 try:
-    __WASM__
+    __WASI__
 except:
-    builtins.__WASM__ = sys.platform in ("wasm", "wasi")
+    builtins.__WASI__ = sys.platform in ("wasm", "wasi",)
 
 try:
     __ANDROID__
@@ -208,7 +208,7 @@ print(
         '__UPY__={!r}'.format(__UPY__),
         '__EMSCRIPTEN__={!r}'.format(__EMSCRIPTEN__),
         '__ANDROID__={!r}'.format(__ANDROID__),
-        '__WASM__={!r}'.format(__WASM__),
+        '__WASI__={!r}'.format(__WASI__),
     )
 )
 
@@ -240,7 +240,6 @@ except Exception as e:
 #    mp_obj_t result = pycore("pyc_excepthook");
 #
 
-print('++++++++++++++')
 
 pyc_jump = {"": undefined}
 
@@ -279,7 +278,7 @@ if __UPY__:
 
     @pycore
     def pyc_test(*argv, **kw):
-        print("pyc_test (pythons.__init__:103):")
+        print("pyc_test (pythons.__init__:281):")
         print("argv : ", argv)
         print("kw : ", kw)
         print("done")

@@ -56,7 +56,7 @@ void print(mp_obj_t str) {
 
 void
 null_pointer_exception(void) {
-    fprintf(stderr, "null pointer exception in function pointer call\\n");
+    fprintf(stderr, "59: null pointer exception in function pointer call\\n");
 }
 
 mp_obj_t

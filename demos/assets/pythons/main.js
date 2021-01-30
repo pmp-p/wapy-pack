@@ -202,8 +202,9 @@ async function window_load(event) {
             }
         }
     } else {
-        console.log('========================================')
+        console.log('205:========================================')
         window.offline()
+        console.log('206:========================================')
     }
 
     if (!found) {
@@ -271,12 +272,12 @@ TODO:
 
         // -i means interactive : we *need* a terminal use simpleterm as fallback.
         if (vm.argv.includes("-i")) {
-            if (!window.vt || !window.vt.is_termjs) {
+            if (!window.terminal) {
                 vm.script.vt = new vt.Terminal("#stdio", 120, 29)
                 vm.script.vt.open()
             } else {
                 clog("VM.script.vt : assuming xterm.js instance in window.vt")
-                vm.script.vt = window.vt
+                vm.script.vt = window.terminal
             }
 
             vm.script.vt.on('key', vt.handlevt)

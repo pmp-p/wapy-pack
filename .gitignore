@@ -137,3 +137,4 @@ debug.keystore
 release.keystore
 demos/app_wapy.html
 demos/wapy/wapy.wasm
+localdev

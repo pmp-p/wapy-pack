@@ -384,15 +384,17 @@ function ESC(data) {
 }
 
 // Ctrl+L is mandatory ! xterm.js 4.7.0+
-function helper(term, e, kc) {
+function helper(term, kc, e) {
     var x,y
-
+    var vtsix = false
     // xterm3/4 ?
     if (!term.is_termjs) {
         if (!term.buffer) {
             //xtermsixel
-            x = vt._core.buffer.x
-            y = vt._core.buffer.y + vt._core.buffer.ybase
+            vtsix = true
+            x = 0+term._core.buffer.x
+            y = 0+term._core.buffer.y + term._core.buffer.ybase
+
         } else {
             x = 0+term.buffer.active.cursorX
             y = 0+term.buffer.active.cursorY
@@ -407,7 +409,7 @@ function helper(term, e, kc) {
     if (e.ctrlKey) {
         console.log('ctrl + '+ kc)
         if (kc == 76) {
-            console.log('clear + '+ y)
+            console.log("Cursor pos clrscr :",x,y)
             var cy = 0 + y
             if ( cy > 0) {
                 var cx = 0 + x
@@ -427,7 +429,8 @@ function helper(term, e, kc) {
                 }
                 term.write( ESC("[M") )
                 if (cx > 0) {
-                    term.write( ESC("["+cx+"C") )
+                    if (!vtsix)
+                        term.write( ESC("["+cx+"C") )
 
                 }
             }
@@ -460,7 +463,7 @@ function handlevt(vtchar, e) {
     const kc = e.keyCode
 
     // that helper handle ctrl+L for clearing screen while keeping cursor pos in the line
-    if ( !vm.script.vt_helper(vm.script.vt, e, kc) )
+    if ( !vm.script.vt_helper(vm.script.vt, kc, e) )
         return;
 
     var key = e.key

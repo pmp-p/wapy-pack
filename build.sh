@@ -25,17 +25,17 @@ echo
 
 if $CI
 then
-    echo "skip disclaimer"
+    echo " * skipping externals repo disclaimer"
 else
     echo "
 I will download from :
 
+URL_WAPY=$URL_WAPY
 URL_WASI=$URL_WASI
 URL_PYCOPY=$URL_PYCOPY
-URL_WAPY=$URL_WAPY
 URL_PYBPC=$URL_PYBPC
 
-press enter to continue.
+Press enter to continue if you agree.
 "
     read
 fi
@@ -44,6 +44,9 @@ fi
 
 # requirements
 # -----------------------------------------
+
+
+# micropython/pycopy/wapy standard library
 
 if [ -d pycopy-lib ]
 then
@@ -54,31 +57,54 @@ else
     git clone $URL_PYCOPY
 fi
 
-if [ -d wasi-sdk ]
-then
-    echo " * wasi ok"
-else
-    wget $URL_WASI
-    tar xfz wasi-sdk-12.0-linux.tar.gz && rm wasi-sdk-12.0-linux.tar.gz
-    mv wasi-sdk-12.0 wasi-sdk
-fi
 
-if [ -d wapy ]
-then
-    cd wapy
-    git pull --ff-only
-    cd ..
-else
-    git clone -b wapy-wasi $URL_WAPY
-fi
+# f2format  f-strings transpiler
 
 $PYTHON -m install --user --upgrade git+$URL_PYBPC.git
 
 
-# patches
-# -----------------------------------------
+# latest WASI sdk
 
-cat > wasi-sdk/fix.h <<END_WASI_SDK_FIX
+if [ -d wasi-sdk ]
+then
+    echo "
+    * wasi sdk found
+"
+else
+    # remove failed downloads if any
+    rm wasi-sdk-*-linux.tar.gz
+    wget $URL_WASI
+    tar xfz wasi-sdk-*-linux.tar.gz && rm wasi-sdk-*-linux.tar.gz && mv wasi-sdk-* wasi-sdk
+fi
+
+
+# wapy mod source
+
+if [ -d wapy ]
+then
+    if [ -f localdev ]
+    then
+        . localdev
+    else
+        cd wapy
+        git pull --ff-only
+        cd ..
+    fi
+else
+    git clone -b wapy-wasi $URL_WAPY
+fi
+
+
+
+# workaround wasi-js limitations
+# -----------------------------------------
+if [ -f wasi-sdk/fix.h ]
+then
+    echo "
+    * wasi64->wasi32 browser patch already applied
+"
+else
+    cat > wasi-sdk/fix.h <<END_WASI_SDK_FIX
 #include <time.h>
 #include <sched.h>
 #include <stdio.h>
@@ -110,49 +136,60 @@ static int wasi_gettimeofday(struct timeval *tv) {
 #define wa_clock_gettime(clockid, timespec) wasi_clock_gettime(clockid, timespec)
 #define wa_gettimeofday(timeval, tmz) wasi_gettimeofday(timeval)
 END_WASI_SDK_FIX
+fi
 
 
-
-
-
-
-
-
+# ~~build native tools~~ wasi sdk clang can do it
+# CC=clang make -C wapy/mpy-cross
 
 
 
 # packer
 # -----------------------------------------
 
-export PATH=${WD}/bin:${WD}/wapy/mpy-cross:${WD}/wasi-sdk/bin:$PATH
-
 
 mkdir -p rom
 $PYTHON rom.py
 
-CC=clang make -C wapy/mpy-cross
+
+export PATH=${WD}/bin:${WD}/wapy/mpy-cross:${WD}/wasi-sdk/bin:$PATH
 
 rm wapy/ports/wapy-wasi/wapy/wapy.wasm
 
-USER_C_MODULES=${WD}/wapy/ports/wapy/cmod/wasi
+export USER_C_MODULES=${WD}/wapy/ports/wapy/cmod/wasi
 
+# build native tools with wasi sdk clang
+CC=clang make -C wapy/mpy-cross
 
 
 if PYTHONPATH=./wapy-lib $PYTHON -u -B -m modgen
 then
-    echo " * transpiled cmod ok"
+    echo "
+
+    * transpiled cmod from $USER_C_MODULES
+"
 else
     echo "ERROR: modgen failed to transpile C modules from $USER_C_MODULES"
     exit 1
 fi
 
+export WASI_SDK_PATH=$(realpath ${WD}/wasi-sdk)
 
-CC="clang --sysroot=${WD}/wasi-sdk/share/wasi-sysroot -include ${WD}/wasi-sdk/fix.h"
+SYSROOT="--sysroot=$(realpath ${WASI_SDK_PATH}/share/wasi-sysroot) -include ${WD}/wasi-sdk/fix.h"
 
+CC="$(command -v clang) -g0 -Os ${SYSROOT} -include ${WD}/wasi-sdk/fix.h"
+
+echo $CC
+
+export CC="clang -g0 -Os ${SYSROOT}"
+
+export CPP="clang ${SYSROOT} -E"
+
+read
 
 
 if make -C wapy/ports/wapy-wasi \
- CC="$CC" NO_NLR=1 \
+ CC="$CC" CPP="$CPP" NO_NLR=1 \
  CFLAGS_EXTRA="-DMODULE_EMBED_ENABLED=1 -DMODULE_EXAMPLE_ENABLED=1 -DMODULE__ZIPFILE_ENABLED=1"\
  USER_C_MODULES=${USER_C_MODULES} \
  FROZEN_MPY_DIR=${WD}/rom \

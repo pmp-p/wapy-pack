@@ -25,11 +25,11 @@ def convert_content(basedir, filename, suffix, ctype, fin, fout, out, diskfile )
         filename = f"{name}.{suffix}"
 
     if not ctype in ('text/python', 'sh',):
-        if LZMA :#
+        if LZMA :
             if ctype=='wasm':
                 content = os.popen(f'base64 {diskfile}| lzma -9 --stdout | base64').read()
             else:
-                content = os.popen(f'lzma -3 --stdout {diskfile} | base64').read()
+                content = os.popen(f'lzma -9 --stdout {diskfile}|base64').read()
         else:
             content = base64.encodebytes(content).decode('ascii')
 
@@ -321,21 +321,7 @@ async function fopen(script, nodefer){
     clog(" <<FS>> ",src)
 
 
-    if (script.type == 'data') {
-        clog('data blob[' +  script.id + '] ', src)
-        const blob = await b64toBlob(script.text, 'application/binary', src);
-        window.sfs[src] = URL.createObjectURL(blob)
-        script.text = ""
-        return
-    }
 
-    if (script.type == 'wasm') {
-        clog('wasm blob[' +  script.id + '] ', src)
-        const blob = await b64toBlob( script.text, 'application/wasm', src);
-        window.sfs[src] = URL.createObjectURL(blob)
-        script.text = ""
-        return
-    }
 
     if (script.type == 'text/python') {
         clog('python source [' +  script.id + '] ', src)
@@ -372,6 +358,20 @@ async function fopen(script, nodefer){
         return
     }
 
+    var ctype
+
+    if (script.type == 'data') {
+        clog('data blob[' +  script.id + '] ', src)
+        ctype = 'application/binary'
+    }
+
+    if (script.type == 'wasm') {
+        clog('wasm blob[' +  script.id + '] ', src)
+        ctype = 'application/wasm'
+    }
+    const blob = await b64toBlob( script.text, ctype, src);
+    window.sfs[src] = URL.createObjectURL(blob)
+    script.text = ""
 }
 
 
@@ -436,8 +436,7 @@ window.sfs = {}
 
 window.clog = clog
 window.log = clog
-
-
+window.byval = JSON.stringify
 
 
 window.offline = function offline() {
@@ -455,11 +454,14 @@ window.offline = function offline() {
         clog(' ========== PRE-INIT ===========')
     }
 
+
     window.Module["locateFile"] = locateFile
     window.Module["preInit"] =  preInit
 
     window.Module["fopen"] =  function (fsn) {
         clog('LOCATING :', fsn )
+
+
         const furl = window.sfs[fsn]
         if (!furl) {
             clog('    Not Found :', fsn," trying fetch")
@@ -481,7 +483,14 @@ window.offline = function offline() {
             break
         }
         clog(' ****************', elem ,'******************** ')
-        vm.argv.push( elems.shift() )
+        const arg = elems.shift()
+        if (arg == "-i") {
+            window.terminal = new Terminal()
+            var x = terminal.open(document.getElementById('stdio'))
+            terminal.write('Please \\x1B[1;3;31mwait\\x1B[0m ...\\r\\n')
+        }
+        vm.argv.push( arg )
+
     }
     window.Module.arguments = elems
 

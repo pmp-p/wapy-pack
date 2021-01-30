@@ -60,10 +60,11 @@ except:
 try:
     import uselect as select
 except:
-    print(f"TODO: a select.poll() implementation is required {sys.platform=}")
+    print(f"TODO: select.poll() implementation required for {sys.platform=}")
 
+notwasm = not __EMSCRIPTEN__ and not __WASI__
 
-if __EMSCRIPTEN__:
+if not notwasm:
     import embed
 
     wall_init = embed.time_ms()
@@ -78,7 +79,7 @@ if __EMSCRIPTEN__:
         global init_ms
         return embed.time_ms() - wall_init
 
-    embed.log("81: #FIXME: uasyncio/__init__.py with time.time_ns() PEP 564")
+    embed.log("81: #FIXME: uasyncio/__init__.py with time.time_ns() PEP 564\n")
     # https://www.python.org/dev/peps/pep-0564/
     # https://vstinner.github.io/python37-pep-564-nanoseconds.html
 
@@ -195,7 +196,7 @@ class EventLoop:
         wait_ms(delay)
 
     def run_once(self):
-        global cur_task
+        global cur_task, notwasm
         tnow = ticks_ms()
         for task in self.scheduler:
             try:
@@ -291,7 +292,7 @@ class EventLoop:
             else:
                 self.call_soon(cb)
 
-        if not __EMSCRIPTEN__:
+        if notwasm:
             # Wait until next waitq task or I/O availability
             delay = 0
             if not len(self.runq):

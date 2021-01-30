@@ -63,7 +63,7 @@ else:
 
     #contextvars is unsupported on micropython
 
-    if __WASM__:
+    if __WASI__ or __EMSCRIPTEN__:
         fixes = ('micropython', 'machine', 'signal')
     elif hasattr(sys, "getandroidapilevel"):
         fixes = ('micropython', 'machine')
@@ -75,7 +75,7 @@ else:
 for fix in fixes:
     try:
         fixme(fix)
-        print('58:FIXED :',fix)
+        #pdb('58:FIXED :',fix)
     except Exception as e:
         print("59:fix",fix,"failed :", e)
         sys.print_exception(e)

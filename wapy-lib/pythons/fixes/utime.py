@@ -18,12 +18,12 @@ if not __UPY__: #sys.version_info[0:2]>(3,6):
 else:
     import embed
     import utime as _time
-    if __WASM__:
+    if __WASI__ or __EMSCRIPTEN__:
         def sleep(t):
             print("No Sleep till Brooklyn")
     if embed.WAPY():
         attr = ("time", "time_ns", "clock", "localtime")
-        if __WASM__:
+        if __WASI__ or __EMSCRIPTEN__:
             def sleep(t):
                 start = int( Time.time() * 1_000_000 )
                 stop = start + int( t * 1_000_000 )

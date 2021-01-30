@@ -9,7 +9,7 @@ NULLPT_SIZE = CONST(4)
 
 if __UPY__:
     import uctypes as this
-    if __WASM__:
+    if __WASI__ or __EMSCRIPTEN__:
         PT_SIZE = CONST(4)
     else:
         PT_SIZE = CONST(8)

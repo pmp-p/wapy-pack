@@ -1,49 +1,6 @@
 "use strict";
 
 /*
-function unhex_utf8(s) {
-    var ary = []
-    for ( var i=0; i<s.length; i+=2 ) {
-        ary.push( parseInt(s.substr(i,2),16) )
-    }
-    return new TextDecoder().decode( new Uint8Array(ary) )
-}
-
-function demux_fd(text) {
-    try {
-        var jsdata = JSON.parse(text);
-        for (const key in jsdata) {
-            // TODO: multiple vt fds for pty.js
-            if (key=="1") {
-                var str = unhex_utf8( jsdata[key])
-                vm.script.vt.write( str.replace(/\n/g,"\r\n") )
-                continue
-            }
-            try {
-                embed_call(jsdata[key])
-            } catch (e) {
-                clog("IOEror : "+e)
-            }
-        }
-    } catch (x) {
-        // found a raw C string via libc
-        console.log(x,text)
-        if (text.length) {
-            clog("C-OUT ["+text+"]")
-        }
-    }
-}
-
-// this is a the demultiplexer for stdout and os (DOM/js/aio ...) control
-function pts_decode(textblob){
-    for (var text of textblob.split("\n")) {
-        if (text.length>0)
-            demux_fd(text)
-    }
-}
-*/
-
-
 let start;
 function halted(msg) {
     if (msg) {
@@ -53,13 +10,15 @@ function halted(msg) {
         msg =""
     vm.script.vt.write(msg + "\r\n\x1b[31m" + "\r\n- system halted -\r\n" + "\x1b[0m " )
 }
+*/
 
 async function frame(timestamp) {
+/*
     if (start === undefined)
         start = timestamp;
 
     const elapsed = timestamp - start;
-
+*/
     try {
         await Module.aio_suspend()
         Module.dlsym("_start")()
@@ -78,7 +37,6 @@ async function frame(timestamp) {
 }
 
 
-
 async function Py_NewInterpreter() {
     const wasm = await import_module("wasm","assets/wasm.js")
     Module.io = wasm.stdio() //{}
@@ -91,7 +49,7 @@ async function Py_NewInterpreter() {
     fd 3   : js-eval / async-rpc
     fd 4   : wasi env
     fd 5   : future use : syscalls / eval
-
+    fd 6   : logging
 */
 
     // { key = value }\n
@@ -130,19 +88,20 @@ async function Py_NewInterpreter() {
             var argv = JSON.parse(str)
             console.log("syscall", argv )
         } catch(x) {
-            console.log("syscall N/I:", str )
+            console.log("syscall N/I: #FIXME use miniMAL", str )
         }
     }
 
-
     Module.stdio = function stdio_custom(fd, str){
-        //console.log("["+fd+"]",str)
+//        if (0+fd > 1)
+  //          console.log("["+fd+"]",str)
         const channel = Module.io[fd]
         if (channel)
             Module.io[fd](str)
         else
             console.log("I/O on closed fd :",fd)
     }
+
 
     Module.aio_suspend = async function aio_suspend() {
         if (window.stdin) {
@@ -185,16 +144,12 @@ async function Py_NewInterpreter() {
                 data = document.getElementById("stdin").text
                 document.getElementById("stdin").text = ""
             }
-            console.log('>>>>> Module argv',Module.arguments, data)
+            console.log('>>>>> Module argv',Module.arguments) //, data)
             Module.dlo.poke_utf8(0, data +"#\n", Module.env.MP_IO_SIZE)
         }
     }
 
-// http://127.0.0.1:8000/wasi/app_wapy.html?wapy&-i&-u&-B#https://wyz.fr/3G-BS
-
 }
-
-
 
 
 Py_NewInterpreter()

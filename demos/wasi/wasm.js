@@ -20,7 +20,7 @@ const ViewSlots = {
 var io_buffers = {}
 var io_channel = 1
 
-var WASI = function(stdio) {
+var WASI = function(iomapper) {
 
     var table = null;
 
@@ -239,8 +239,6 @@ var WASI = function(stdio) {
         var written = 0;
         var bufferBytes = [];
 
-
-
         var buffers = getiovs(view, iovs, iovs_len);
 
         function writev(iov) {
@@ -255,7 +253,7 @@ var WASI = function(stdio) {
 
         buffers.forEach(writev);
 
-        stdio(fd, String.fromCharCode.apply(null, bufferBytes));
+        iomapper(fd, String.fromCharCode.apply(null, bufferBytes));
 
         view.setUint32(nwritten, written, !0);
 
@@ -334,6 +332,7 @@ export async function dlopen(Module) {
 
     //const moduleImports = { wasi_unstable: wasi, args : Module.argv, env : Module.env, js: { mem: memory } };
     const moduleImports = { wasi_snapshot_preview1: wasi, args : Module.argv, env : Module.env, js: { mem: memory } };
+
     if (WebAssembly.instantiateStreaming) {
         wlog("WebAssembly.instantiateStreaming")
         const result = await WebAssembly.instantiateStreaming(as_bc, moduleImports);
@@ -352,6 +351,7 @@ export async function dlopen(Module) {
         }
         Module.vm = await WebAssembly.instantiate(Module.wasm, moduleImports);
     }
+
     URL.revokeObjectURL(url)
 
     wasi.dlopen(Module)
@@ -399,7 +399,6 @@ function demux_fd(text) {
 
 function io_hex(textblob) {
 
-
     try {
         for (var stream of textblob.split("\n")) {
             if (stream.length>0) {
@@ -433,19 +432,23 @@ function pts_decode(textblob){
 
 export function stdio() {
     var io = {}
-    io["1"] = function (str){
+    io["1"] = function (str) {
         window.vm.script.vt.write(str.replace(/\n/g,"\r\n") )
     }
 
-    io["2"] = function (str){
-        str = str.replace(/\n$/g,"")
-        if (str)
-            console.log("stderr:",str);
-        //vm.script.vt.write("\x1b[31m" + str.replace(/\n/g,"\r\n") + "\x1b[0m" )
+    io["2"] = function (str) {
+        vm.script.vt.write("\x1b[31m" + str.replace(/\n/g,"\r\n") + "\x1b[0m" )
     }
 
-    io["3"] = function (str){
+    io["3"] = function (str) {
+        console.log("IOHEX")
         io_hex(str)
+    }
+
+    io["6"] = function (str) {
+        str = str.replace(/\r\n$/g,"").replace(/\n$/g,"")
+        if (str)
+            console.log(str);
     }
 
     return io
