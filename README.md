@@ -8,17 +8,17 @@ Actual targets :
 
     WASI
 
-    WebAssembly via polyfill
+    Web Browser (polyfill is provided)
 
 Future targets :
 
     android
 
-    WASM
+    wasm (polyfill provided)
 
-    asm.js
+    asm.js (polyfill provided)
 
-    le32-unknown-nacl
+    le32-unknown-nacl (vmir)
 
 ----
 
